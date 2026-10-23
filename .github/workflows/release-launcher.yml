@@ -1,0 +1,89 @@
+name: Publish MINEVORA Launcher 18.3.3
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch launcher and build ZIP
+        shell: bash
+        run: |
+          python - <<'PY'
+          import urllib.request, hashlib, ast
+          from zipfile import ZipFile
+          from pathlib import Path
+          url='https://raw.githubusercontent.com/cubeverse12/minevora-website/main/downloads/MINEVORA_LAUNCHER_18_3_2_MULTI_VERSION_PVP.zip'
+          digest='90943a6b175706ece9989ae562e64b53f6e65e8034dd1301587dfb69200e7cd6'
+          raw=urllib.request.urlopen(url,timeout=120).read()
+          assert hashlib.sha256(raw).hexdigest()==digest,'Unreviewed base archive'
+          Path('dist').mkdir(exist_ok=True)
+          original=Path('dist/base.zip')
+          original.write_bytes(raw)
+          out=Path('dist/MINEVORA_LAUNCHER_18_3_3_BEZ_ZBEDNYCH_PRZYCISKOW.zip')
+          code='MINEVORA_18_3_ENCHANTED/minevora_pvp_modmenu_qt.py'
+          doc='MINEVORA_18_3_ENCHANTED/CZYTAJ_PVP_17_7.txt'
+          old="""  actions=QHBoxLayout()
+            for label,callback in [('＋  Zainstaluj mod .jar',self.install_jar),('◉  Włącz / wyłącz mod',self.toggle_jar),('📁  Folder modów',self.open_mods_folder)]:
+             b=QPushButton(label);b.clicked.connect(callback);actions.addWidget(b)
+            box.addLayout(actions)
+          """
+          # Strip YAML's Python heredoc indentation from the three nested lines.
+          old=old.replace('            for label','  for label').replace('             b=','   b=').replace('            box.addLayout','  box.addLayout')
+          notes="""MINEVORA 18.3.3 — uproszczone PvP Mod Menu
+          Wybierz profil Fabric 1.21.1 i kliknij POBIERZ I ZAINSTALUJ PVP HUD Z GITHUBA.
+          W grze: Prawy Shift lub P otwiera ustawienia; H przełącza HUD bez zamykania gry.
+          Usunięto z launchera przyciski: instalacja ręczna JAR, przełączanie JAR, folder modów.
+          Aktualizacja pliku JAR wymaga zamknięcia Minecrafta.
+          """
+          readme="""MINEVORA Launcher 18.3.3
+          Usunięto trzy zbędne przyciski z PvP Mod Menu.
+          Pozostawiono POBIERZ I ZAINSTALUJ PVP HUD Z GITHUBA i automat instalacji.
+          W trakcie gry włączanie i wyłączanie HUD-u: H.
+          """
+          with ZipFile(original) as zin, ZipFile(out,'w') as zout:
+              s=zin.read(code).decode('utf-8')
+              assert s.count(old)==1,'Expected toolbar not found'
+              s=s.replace(old,'  # The redundant manual JAR / toggle / folder actions were removed.\n')
+              ast.parse(s)
+              assert 'self.github_button.clicked.connect(self.install_github)' in s
+              assert 'box.addLayout(actions)' not in s
+              for item in zin.infolist():
+                  payload=s.encode('utf-8') if item.filename==code else notes.encode('utf-8') if item.filename==doc else zin.read(item.filename)
+                  zout.writestr(item,payload)
+              zout.writestr('MINEVORA_18_3_ENCHANTED/README_18_3_3_ZMIANA_MENU.txt',readme.encode('utf-8'))
+          with ZipFile(out) as z:
+              assert z.testzip() is None
+              ast.parse(z.read(code).decode('utf-8'))
+          original.unlink()
+          checksum=hashlib.sha256(out.read_bytes()).hexdigest()
+          (out.parent/(out.name+'.sha256')).write_text(checksum+'  '+out.name+'\n')
+          print('Built:',out,checksum)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MINEVORA-LAUNCHER-18.3.3
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+      - name: Publish launcher release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          if gh release view v18.3.3 >/dev/null 2>&1; then
+            echo 'Release already exists; not overwriting'
+          else
+            gh release create v18.3.3 dist/*.zip dist/*.sha256 \
+              --title 'MINEVORA Launcher 18.3.3 - proste PvP Menu' \
+              --notes 'Usunięto przyciski: Zainstaluj mod .jar, Włącz / wyłącz mod, Folder modów. Pozostało pobieranie PvP HUD z GitHuba. HUD w grze przełącza klawisz H.'
+          fi

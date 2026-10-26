@@ -1,0 +1,51 @@
+name: MINEVORA Launcher 18.3.4 SHARP
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/build_sharp_18_3_4.py'
+      - '.github/workflows/release-18-3-4-sharp.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-sharp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install image tools
+        run: python -m pip install --disable-pip-version-check 'Pillow>=10,<13'
+      - name: Download official 18.3.3 launcher
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          mkdir -p input
+          gh release download v18.3.3 --repo cubeverse12/minevora-launcher \
+            --pattern 'MINEVORA_LAUNCHER_18_3_3_BEZ_ZBEDNYCH_PRZYCISKOW.zip' \
+            --dir input
+      - name: Verify original and improve graphics
+        run: python tools/build_sharp_18_3_4.py
+      - name: Upload improved launcher
+        uses: actions/upload-artifact@v4
+        with:
+          name: MINEVORA-LAUNCHER-18.3.4-SHARP
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+      - name: Publish public 18.3.4 SHARP release
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          if gh release view v18.3.4 >/dev/null 2>&1; then
+            echo 'Existing release v18.3.4 kept unchanged'
+          else
+            gh release create v18.3.4 dist/*.zip dist/*.sha256 \
+              --title 'MINEVORA Launcher 18.3.4 SHARP' \
+              --notes 'Launcher 18.3.3 z poprawioną jakością zdjęć i skalowaniem grafik. Zachowano nowe PvP Mod Menu. Bez zmian w skinach pixel-art.'
+          fi

@@ -164,9 +164,10 @@ def patch_dashboard(source):
 
 def patch_main(source):
     source=once(source,"class Window(QMainWindow):",EXTRA_QSS+"\nclass Window(QMainWindow):","Theme injection")
-    source=once(source,
-        "self.setWindowTitle('MINEVORA 18.3 • ENCHANTED LAUNCHER')",
-        "self.setWindowTitle('MINEVORA 18.3.7 • NEON DESKTOP')","Window title")
+    old_title="self.setWindowTitle('MINEVORA 18.3 • ENCHANTED LAUNCHER')"
+    assert old_title in source, "Expected original main window title"
+    source=source.replace(old_title,
+        "self.setWindowTitle('MINEVORA 18.3.7 • NEON DESKTOP')",1)
     ast.parse(source)
     assert "self.setStyleSheet(ENCHANTED_QSS)" in source
     assert "self.account_button=btn" in source

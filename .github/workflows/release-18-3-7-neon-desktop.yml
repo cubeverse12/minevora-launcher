@@ -1,0 +1,109 @@
+name: Build MINEVORA 18.3.7 Neon Desktop
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/build_neon_ui_18_3_7.py'
+      - '.github/workflows/release-18-3-7-neon-desktop.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download verified current launcher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p input dist
+          gh release download v18.3.6 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip' --dir input
+          gh release download v18.3.6 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip.sha256' --dir input
+          (cd input && sha256sum --check MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip.sha256)
+      - name: Prepare same background and logo as MINEVORA website
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet "Pillow>=10,<13" "CairoSVG>=2.7,<3"
+          curl -fLsS --retry 3 --max-time 45 "https://raw.githubusercontent.com/cubeverse12/cubeverse/main/assets/site-hd/website-photos-20261027-home-hero-1280.webp" -o input/minevora_website_hero.webp
+          curl -fLsS --retry 3 --max-time 45 "https://raw.githubusercontent.com/cubeverse12/cubeverse/main/assets/minevora_crystal_logo.svg" -o input/minevora_crystal_logo.svg
+          python - <<'PY'
+          from PIL import Image
+          import cairosvg
+          src=Image.open('input/minevora_website_hero.webp')
+          assert src.width>=960 and src.height>=540, src.size
+          src.convert('RGB').save('input/minevora_neon_desktop.jpg',format='JPEG',quality=91,optimize=True,subsampling=0)
+          cairosvg.svg2png(url='input/minevora_crystal_logo.svg',write_to='input/minevora_neon_logo.png',output_width=900)
+          logo=Image.open('input/minevora_neon_logo.png')
+          assert logo.width==900 and logo.height>100
+          print('Site imagery:',src.size,'logo:',logo.size)
+          PY
+      - name: Repackage real PySide6 UI without touching game engine
+        run: |
+          set -euo pipefail
+          python -m py_compile tools/build_neon_ui_18_3_7.py
+          python tools/build_neon_ui_18_3_7.py
+          (cd dist && sha256sum --check MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip.sha256)
+      - name: Headless Qt visual smoke test
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet "PySide6>=6.8,<7"
+          QT_QPA_PLATFORM=offscreen python - <<'PY'
+          from pathlib import Path
+          import sys,zipfile,tempfile
+          from PySide6.QtWidgets import QApplication,QWidget
+          root=Path(tempfile.mkdtemp())
+          with zipfile.ZipFile('dist/MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip') as z:
+              z.extractall(root)
+          path=root/'MINEVORA_18_3_ENCHANTED'
+          sys.path.insert(0,str(path))
+          from minevora_dashboard import EnchantedDashboard
+          app=QApplication([])
+          class Launcher:
+              current_version=None
+              session=None
+              def play(self):pass
+              def instances(self):pass
+              def mods(self):pass
+              def leaderboard(self):pass
+              def pvp_mod_menu(self):pass
+              def login(self):pass
+              def choose_version(self,value):self.current_version=value
+          window=EnchantedDashboard(Launcher())
+          window.resize(1120,900)
+          window.show()
+          app.processEvents()
+          assert window.version_combo.count()>=1
+          assert window.loader_combo.count()==5
+          assert window.findChildren(QWidget,'dashboardHero')
+          assert len(window.cards)==4
+          assert len(list((path/'assets').glob('minevora_neon_*')))==2
+          screenshot=root/'minevora-18-3-7-desktop.png'
+          window.grab().save(str(screenshot))
+          assert screenshot.stat().st_size>30000
+          print('Qt smoke test passed:',screenshot.stat().st_size,'bytes')
+          PY
+      - name: Upload verified Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: MINEVORA-LAUNCHER-18.3.7-NEON-DESKTOP
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            dist/MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip
+            dist/MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip.sha256
+      - name: Publish release without overwriting 18.3.6
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v18.3.7 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Existing release v18.3.7 left untouched."
+          else
+            gh release create v18.3.7 dist/*.zip dist/*.sha256 --repo "${{ github.repository }}" --title "MINEVORA 18.3.7 — Neon Desktop" --notes "Nowy fioletowy ekran Start zgodny z minevora.pl/v4: grafika i logo, wersja Minecraft, filtr loadera i duży GRAJ. Lista wersji pokazuje tylko lokalne instalacje; nowe wersje dodajesz w Graj / Wersje. Silnik gry, Microsoft, profile, mody, Skin Studio, PvP HUD i RAM pozostają bez zmian. Weryfikacja ZIP, Python AST oraz GUI PySide6 w trybie offscreen; zalecany test na Windows 11."
+          fi

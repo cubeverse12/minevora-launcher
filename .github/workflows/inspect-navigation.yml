@@ -66,3 +66,23 @@ jobs:
                       line='[redacted]'
                   print(f'{n+1}: {line[:230]}')
           PY
+
+      - name: Inspect navigation call sites and home controls
+        run: |
+          python - <<'PY'
+          import zipfile,re,ast
+          archive='input/MINEVORA_LAUNCHER_18_3_4_SHARP.zip'
+          with zipfile.ZipFile(archive) as z:
+              src=z.read('MINEVORA_18_3_ENCHANTED/minevora_qt.py').decode('utf-8-sig')
+          lines=src.splitlines()
+          print('### NAVIGATION BLOCK')
+          for a,b in ((345,435),(535,580)):
+              for n in range(a,min(b,len(lines))):
+                  print(f'{n+1:04d} {lines[n][:240]}')
+          print('### CALLBACK REFERENCES')
+          patterns=['primary_navigation','self.nav_buttons','self.sidebar','self.nav_','self.mark(','self.features_page','self.market','self.minigames','self.plus','PLUS']
+          for n,line in enumerate(lines):
+              if any(p in line for p in patterns) and n not in range(345,435):
+                  print(f'{n+1:04d} {line[:210]}')
+          print('AST_VALID:',bool(ast.parse(src)))
+          PY

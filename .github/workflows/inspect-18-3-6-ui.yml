@@ -1,0 +1,46 @@
+name: Inspect MINEVORA 18.3.6 for matching desktop design
+on:
+  push:
+    paths: ['.github/workflows/inspect-18-3-6-ui.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input
+          gh release download v18.3.6 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip' --dir input
+          gh release download v18.3.6 --repo "${{ github.repository }}" --pattern '*.sha256' --dir input
+          (cd input && sha256sum -c MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip.sha256)
+      - name: Inspect screen and theme
+        run: |
+          python - <<'PY'
+          import zipfile,re,ast
+          name='input/MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip'
+          with zipfile.ZipFile(name) as z:
+            paths=[n for n in z.namelist() if n.endswith('.py') and ('dashboard' in n or 'minevora_qt' in n)]
+            print('CANDIDATES',paths)
+            for p in paths[:7]:
+              src=z.read(p).decode('utf-8-sig')
+              lines=src.splitlines()
+              print('FILE',p,'lines',len(lines),'bytes',len(src),'AST',bool(ast.parse(src)))
+              if p.endswith('minevora_dashboard.py'):
+                print('=== DASHBOARD source first 350 lines ===')
+                for i,line in enumerate(lines[:350]):
+                  print(f'CODE {i+1:04d}: {line[:350]}')
+                for i,line in enumerate(lines):
+                  if any(s in line.lower() for s in ('background','hero','banner','setstylesheet','setminimumsize','image','pixmap','logo','qlineargradient','qlabel','setobjectname','setfixedheight')):
+                    if i>=350 and i<1000:
+                      print(f'THEME {i+1:04d}: {line[:350]}')
+              elif p.endswith('minevora_qt.py'):
+                for i,line in enumerate(lines):
+                  if any(s in line for s in ('setStyleSheet(', 'def __init__', 'QStackedWidget','EnchantedDashboard','StyleSheet(', 'self.dashboard')):
+                    if i<550 or 'Dashboard' in line:
+                      print(f'MAIN {i+1:04d}: {line[:300]}')
+          PY

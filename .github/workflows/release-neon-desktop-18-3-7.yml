@@ -1,0 +1,107 @@
+name: MINEVORA 18.3.7 — Neon Desktop Launcher
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/build_neon_desktop_18_3_7.py'
+      - '.github/workflows/release-neon-desktop-18-3-7.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download verified 18.3.6 source and matching website artwork
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p input dist
+          gh release download v18.3.6 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip' --dir input
+          gh release download v18.3.6 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip.sha256' --dir input
+          (cd input && sha256sum -c MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip.sha256)
+          curl --fail --location --retry 4 --connect-timeout 10 --max-time 60 \
+            'https://raw.githubusercontent.com/cubeverse12/cubeverse/main/assets/site-hd/website-photos-20261027-home-hero-1280.webp' \
+            --output input/minevora_site_hero.webp
+      - name: Create updated Qt application package
+        run: |
+          python -m pip install --quiet pillow
+          python -m py_compile tools/build_neon_desktop_18_3_7.py
+          python tools/build_neon_desktop_18_3_7.py
+          (cd dist && sha256sum -c MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip.sha256)
+      - name: Smoke test interactive dashboard offscreen
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pip install --quiet 'PySide6>=6.8,<7'
+          python - <<'PY'
+          import os,sys,tempfile,zipfile
+          from pathlib import Path
+          from PySide6.QtWidgets import QApplication,QPushButton
+          with tempfile.TemporaryDirectory() as tmp:
+              with zipfile.ZipFile('dist/MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip') as z:
+                  z.extractall(tmp)
+              root=Path(tmp)/'MINEVORA_18_3_ENCHANTED'
+              sys.path.insert(0,str(root))
+              from minevora_dashboard import EnchantedDashboard,ArtPanel
+              app=QApplication([])
+              hits=[]
+              class Stub:
+                  session=None
+                  active_profile={'version':'1.21.4','loader':'Vanilla'}
+                  current_version='1.21.4'
+                  def __getattr__(self,name):
+                      def call():hits.append(name)
+                      return call
+              stub=Stub()
+              widget=EnchantedDashboard(stub)
+              widget.resize(1120,850)
+              widget.show()
+              app.processEvents()
+              assert not ArtPanel('minevora_18_3_7_hero.jpg').pixmap.isNull()
+              assert widget.hero_play.objectName()=='heroPlay'
+              assert widget.version_button.objectName()=='heroSelect'
+              assert widget.loader_button.objectName()=='heroSelect'
+              assert len(widget.cards)==4
+              widget.update_state()
+              assert '1.21.4' in widget.version_button.text()
+              assert 'Vanilla' in widget.loader_button.text()
+              widget.hero_play.click()
+              widget.version_button.click()
+              widget.loader_button.click()
+              assert hits==['play','instances','install_mod_loader'],hits
+              assert widget.grab().save('dist/minevora-neon-desktop-preview.png')
+              print('GUI SMOKE OK — real Play, versions, loader controls; 4 features; hero image')
+              app.quit()
+          PY
+      - name: Upload Windows ZIP and screenshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MINEVORA-18.3.7-NEON-DESKTOP
+          path: |
+            dist/MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip
+            dist/MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip.sha256
+            dist/minevora-neon-desktop-preview.png
+          retention-days: 30
+          if-no-files-found: error
+      - name: Publish new release (preserve 18.3.6)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view v18.3.7 >/dev/null 2>&1; then
+            echo "v18.3.7 already exists — not replacing any published release"
+          else
+            gh release create v18.3.7 \
+              dist/MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip \
+              dist/MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip.sha256 \
+              --title "MINEVORA 18.3.7 — Neon Desktop" \
+              --notes "Wspólny motyw strony i launchera Windows: ten sam obraz fantasy, duże logo, fioletowe karty wersji i loadera, prawdziwy przycisk GRAJ. Zachowano profile Minecraft Java, Microsoft, ustawienia, RAM, mod manager, Skin Studio, PvP HUD i Rankingi. Poprzednie wersje nie są nadpisywane. Archiwum SHA-256, kontrola kodu i test ekranu Qt w trybie offscreen. Wersja oparta na publicznym 18.3.6; nie zastępuje lokalnych instalacji 18.3.19."
+          fi

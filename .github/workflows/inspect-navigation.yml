@@ -86,3 +86,19 @@ jobs:
                   print(f'{n+1:04d} {line[:210]}')
           print('AST_VALID:',bool(ast.parse(src)))
           PY
+      - name: Inspect all start shortcuts and highlight logic
+        run: |
+          python - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('input/MINEVORA_LAUNCHER_18_3_4_SHARP.zip') as z:
+              lines=z.read('MINEVORA_18_3_ENCHANTED/minevora_qt.py').decode('utf-8-sig').splitlines()
+          for a,b in ((428,455),(624,697),(1770,1825),(2010,2045)):
+              print(f'### SECTION {a}-{b}')
+              for k in range(a-1,min(b,len(lines))):
+                  print(f'{k+1:04d}: {lines[k][:500]}')
+          for k,line in enumerate(lines):
+              if 'def highlight_nav' in line or 'def mark(' in line:
+                  print('### NAV HIGHLIGHT',k+1)
+                  for n in range(k,min(k+22,len(lines))):
+                      print(f'{n+1:04d}: {lines[n][:500]}')
+          PY

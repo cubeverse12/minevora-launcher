@@ -1,0 +1,39 @@
+name: Inspect MINEVORA 18.3.6 Visual Layout
+on:
+  push:
+    paths: ['.github/workflows/inspect-visual-18-3-6.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input
+          gh release download v18.3.6 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip' --dir input
+      - name: Inspect dashboard, assets, stylesheet, main window
+        run: |
+          python - <<'PY'
+          import zipfile, re
+          with zipfile.ZipFile('input/MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip') as z:
+              print('### ASSETS')
+              for n in z.namelist():
+                  if any(n.lower().endswith(s) for s in ('.png','.webp','.jpg','.jpeg','.svg')):
+                      print(n,len(z.read(n)))
+              for key in ('minevora_dashboard.py','minevora_qt.py'):
+                  name=next(n for n in z.namelist() if n.endswith('/'+key))
+                  s=z.read(name).decode('utf-8-sig').splitlines()
+                  print('### FILE',name,'LINES',len(s))
+                  if key=='minevora_dashboard.py':
+                      for i,line in enumerate(s[:380]):
+                          print(f'{i+1:04d}|{line[:260]}')
+                  else:
+                      for i,line in enumerate(s):
+                          if re.search(r'(setStyleSheet|QMainWindow|QPixmap|background|def __init__|class Main|def play\(|def _set_page|self\.pages\.|EnchantedDashboard|styleSheet\()',line,re.I):
+                              print(f'{i+1:04d}|{line[:230]}')
+          PY

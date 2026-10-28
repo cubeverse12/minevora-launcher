@@ -37,3 +37,19 @@ jobs:
                           if re.search(r'(setStyleSheet|QMainWindow|QPixmap|background|def __init__|class Main|def play\(|def _set_page|self\.pages\.|EnchantedDashboard|styleSheet\()',line,re.I):
                               print(f'{i+1:04d}|{line[:230]}')
           PY
+
+      - name: Inspect main controls and version-selection widgets
+        run: |
+          python - <<'PY'
+          import zipfile,re
+          with zipfile.ZipFile('input/MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip') as z:
+              src=z.read('MINEVORA_18_3_ENCHANTED/minevora_qt.py').decode('utf-8-sig')
+          ls=src.splitlines()
+          for a,b in ((355,470),(475,600),(630,705)):
+              print(f'### SEGMENT {a}-{b}')
+              for i in range(a-1,min(b,len(ls))):print(f'{i+1:04d}|{ls[i][:270]}')
+          print('### SELECT AND STYLE REFERENCES')
+          for i,line in enumerate(ls):
+              if re.search(r'(self\.(?:version|loader|minecraft_version|selected|profile|install_combo|ram|play|instances)|ENCHANTED_QSS|setMinimumSize|setWindowTitle)',line,re.I) and 700<i<2300:
+                  print(f'{i+1:04d}|{line[:190]}')
+          PY

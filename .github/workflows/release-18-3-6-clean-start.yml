@@ -1,0 +1,54 @@
+name: Build MINEVORA 18.3.6 Clean Start
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/build_dashboard_clean_18_3_6.py'
+      - '.github/workflows/release-18-3-6-clean-start.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Get verified MINEVORA 18.3.5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input
+          gh release download v18.3.5 --repo cubeverse12/minevora-launcher --pattern 'MINEVORA_LAUNCHER_18_3_5_UPROSZCZONY.zip' --dir input
+          gh release download v18.3.5 --repo cubeverse12/minevora-launcher --pattern 'MINEVORA_LAUNCHER_18_3_5_UPROSZCZONY.zip.sha256' --dir input
+          (cd input && sha256sum -c MINEVORA_LAUNCHER_18_3_5_UPROSZCZONY.zip.sha256)
+      - name: Rebuild dashboard only and verify archive
+        run: |
+          python -m py_compile tools/build_dashboard_clean_18_3_6.py
+          python tools/build_dashboard_clean_18_3_6.py
+          (cd dist && sha256sum -c MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip.sha256)
+      - name: Upload MINEVORA archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: MINEVORA-LAUNCHER-18.3.6-CZYSTY-START
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            dist/MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip
+            dist/MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip.sha256
+      - name: Publish v18.3.6 without altering previous releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v18.3.6 --repo cubeverse12/minevora-launcher >/dev/null 2>&1; then
+            echo "Existing v18.3.6 release is unchanged."
+          else
+            gh release create v18.3.6 dist/*.zip dist/*.sha256 \
+              --repo cubeverse12/minevora-launcher \
+              --title 'MINEVORA Launcher 18.3.6 - czysty Start' \
+              --notes 'Bazą jest zweryfikowana paczka MINEVORA 18.3.5. Usunięto z ekranu Start nadmiarowe kafelki Minigry, Marketplace, Together i Ustawienia, przycisk Minigry oraz panel Co nowego. Pozostały cztery karty Graj/Wersje, Mody, Ranking i PvP HUD. W launcherze działają dalej oryginalne moduły gry, wybór wersji i loadera, Microsoft, Skin Studio, RAM oraz konfiguracja. ZIP zweryfikowany testem integralności i składni. Test GUI na Windows wskazany po pobraniu.'
+          fi

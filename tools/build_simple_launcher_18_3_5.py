@@ -9,14 +9,11 @@ from __future__ import annotations
 
 import ast
 import hashlib
-import io
-import sys
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 
 ROOT = "MINEVORA_18_3_ENCHANTED"
 SOURCE = Path("input/MINEVORA_LAUNCHER_18_3_4_SHARP.zip")
-DIGEST = "62662b9d0de0d6c1b58446c8fe9a9ca2f6a89c2d0367b0a9bebf37c835d94b04"  # verify against published .sha256, not this placeholder
 SUMFILE = Path("input/MINEVORA_LAUNCHER_18_3_4_SHARP.zip.sha256")
 OUT = Path("dist/MINEVORA_LAUNCHER_18_3_5_UPROSZCZONY.zip")
 MAIN = f"{ROOT}/minevora_qt.py"

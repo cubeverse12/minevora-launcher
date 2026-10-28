@@ -1,0 +1,53 @@
+name: MINEVORA Launcher 18.3.5 — Simplified UI
+on:
+  push:
+    paths:
+      - 'tools/build_simple_launcher_18_3_5.py'
+      - '.github/workflows/release-simple-ui.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify public launcher 18.3.4
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p input
+          gh release download v18.3.4 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_4_SHARP.zip' --dir input
+          gh release download v18.3.4 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_4_SHARP.zip.sha256' --dir input
+          (cd input && sha256sum --check MINEVORA_LAUNCHER_18_3_4_SHARP.zip.sha256)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch only launcher navigation and shortcuts
+        run: |
+          python -m py_compile tools/build_simple_launcher_18_3_5.py
+          python tools/build_simple_launcher_18_3_5.py
+          (cd dist && sha256sum --check MINEVORA_LAUNCHER_18_3_5_UPROSZCZONY.zip.sha256)
+      - name: Upload verified download
+        uses: actions/upload-artifact@v4
+        with:
+          name: MINEVORA-LAUNCHER-18.3.5-UPROSZCZONY
+          path: |
+            dist/MINEVORA_LAUNCHER_18_3_5_UPROSZCZONY.zip
+            dist/MINEVORA_LAUNCHER_18_3_5_UPROSZCZONY.zip.sha256
+          if-no-files-found: error
+      - name: Publish new release without replacing old releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view v18.3.5 >/dev/null 2>&1; then
+            echo "v18.3.5 already exists, leaving the original release intact"
+          else
+            gh release create v18.3.5 dist/*.zip dist/*.sha256 \
+              --title "MINEVORA Launcher 18.3.5 — Uproszczone Menu" \
+              --notes "Uproszczony widoczny interfejs na bazie publicznej wersji 18.3.4 SHARP. Ukryto Marketplace, Minigry, powtórzony Discord, Wszystkie funkcje, Together i Co nowego. Start ma cztery kafelki: Mody, Skin Studio, PvP HUD i Ranking. Zachowano GRAJ, profile Minecrafta, RAM, logowanie Microsoft, ustawienia, moduły i cały pozostały kod. Nie jest to aktualizacja lokalnej wersji 18.3.19."
+          fi

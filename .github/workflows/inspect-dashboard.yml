@@ -1,16 +1,19 @@
 name: Inspect Dashboard Shortcuts
 on:
   push:
-    paths: ['.github/workflows/inspect-dashboard.yml']
+    paths:
+      - '.github/workflows/inspect-dashboard.yml'
   workflow_dispatch:
-permissions: {contents: read}
+permissions:
+  contents: read
 jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Download launcher
-        env: {GH_TOKEN: ${{ github.token }}}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p input
           gh release download v18.3.4 --repo cubeverse12/minevora-launcher --pattern 'MINEVORA_LAUNCHER_18_3_4_SHARP.zip' --dir input

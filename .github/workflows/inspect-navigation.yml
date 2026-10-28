@@ -51,3 +51,18 @@ jobs:
                           if any(x in line.lower() for x in ('token=', 'secret=', 'password=')):line='[redacted]'
                           print(f'{k+1:4}: {line}')
           PY
+      - name: Print startup and navigation control flow (limited)
+        shell: bash
+        run: |
+          python - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('input/MINEVORA_LAUNCHER_18_3_4_SHARP.zip') as z:
+              code=z.read('MINEVORA_18_3_ENCHANTED/minevora_qt.py').decode('utf-8-sig').splitlines()
+          for start,end in [(340,425),(485,535),(560,620),(750,790),(1750,1820),(1890,1920)]:
+              print(f'=== LINES {start}-{end} ===')
+              for n in range(start-1,min(len(code),end)):
+                  line=code[n]
+                  if any(key in line.lower() for key in ('token=','client_secret','password=')):
+                      line='[redacted]'
+                  print(f'{n+1}: {line[:230]}')
+          PY

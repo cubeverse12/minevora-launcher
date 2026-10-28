@@ -44,3 +44,20 @@ jobs:
                     if i<550 or 'Dashboard' in line:
                       print(f'MAIN {i+1:04d}: {line[:300]}')
           PY
+
+      - name: Inspect real version selectors and Minecraft startup
+        run: |
+          python - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('input/MINEVORA_LAUNCHER_18_3_6_CZYSTY_START.zip') as z:
+            lines=z.read('MINEVORA_18_3_ENCHANTED/minevora_qt.py').decode('utf-8-sig').splitlines()
+          for a,b in [(407,455),(1630,1805),(1870,1910)]:
+            print('=== MAIN SECTION',a,b)
+            for n in range(a-1,min(len(lines),b)):
+              print(f'MAINLINE {n+1:04d}: {lines[n][:430]}')
+          print('=== COMBOS ===')
+          for n,line in enumerate(lines):
+            if any(k in line for k in ('self.version','self.loader','self.profile_combo','self.version_combo','self.loader_combo','self.install_', 'QComboBox(')):
+              if n<800 or n>1600:
+                print(f'COMBO {n+1:04d}: {line[:330]}')
+          PY

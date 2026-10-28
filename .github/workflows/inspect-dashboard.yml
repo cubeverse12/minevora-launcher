@@ -1,0 +1,37 @@
+name: Inspect Dashboard Shortcuts
+on:
+  push:
+    paths: ['.github/workflows/inspect-dashboard.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download launcher
+        env: {GH_TOKEN: ${{ github.token }}}
+        run: |
+          mkdir -p input
+          gh release download v18.3.4 --repo cubeverse12/minevora-launcher --pattern 'MINEVORA_LAUNCHER_18_3_4_SHARP.zip' --dir input
+      - name: Find dashboard cards
+        run: |
+          python - <<'PY'
+          import zipfile
+          names=['class EnchantedDashboard','Wybierz swoją przygodę','MINEVORA PLUS','Marketplace','Minigry','Wszystkie funkcje']
+          with zipfile.ZipFile('input/MINEVORA_LAUNCHER_18_3_4_SHARP.zip') as z:
+            for fn in z.namelist():
+              if not fn.endswith('.py'): continue
+              try: src=z.read(fn).decode('utf-8-sig')
+              except UnicodeError: continue
+              lines=src.splitlines()
+              hits=[i for i,l in enumerate(lines) if any(w.casefold() in l.casefold() for w in names)]
+              if not hits:continue
+              print('FILE',fn,'COUNT',len(hits))
+              if 'class EnchantedDashboard' in src:
+                 i=next(k for k,l in enumerate(lines) if 'class EnchantedDashboard' in l)
+                 for k in range(max(0,i-2),min(len(lines),i+155)):
+                   print(f'{k+1}: {lines[k][:220]}')
+              else:
+                 for k in hits[:20]:print(f'{k+1}: {lines[k][:220]}')
+          PY

@@ -1,0 +1,53 @@
+name: Inspect Launcher Navigation
+on:
+  push:
+    paths:
+      - ".github/workflows/inspect-navigation.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official source archive 18.3.4
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input
+          gh release download v18.3.4 --repo cubeverse12/minevora-launcher --pattern 'MINEVORA_LAUNCHER_18_3_4_SHARP.zip' --dir input
+          gh release download v18.3.4 --repo cubeverse12/minevora-launcher --pattern 'MINEVORA_LAUNCHER_18_3_4_SHARP.zip.sha256' --dir input
+          (cd input && sha256sum -c MINEVORA_LAUNCHER_18_3_4_SHARP.zip.sha256)
+      - name: Examine navigation labels and constructors
+        shell: bash
+        run: |
+          python - <<'PY'
+          import zipfile,ast,re
+          archive='input/MINEVORA_LAUNCHER_18_3_4_SHARP.zip'
+          with zipfile.ZipFile(archive) as z:
+              files=[f for f in z.namelist() if f.endswith('.py')]
+              print('PYTHON_FILES:', len(files))
+              print('MAIN_FILES:', [f for f in files if any(q in f for q in ('minevora_qt.py','minevora_engine.py','minevora_easy_core.py'))])
+              words=('Marketplace','Minigry','MINEVORA PLUS','PLUS','Ustawienia','Wersje','Rangi','Ranking','PvP Mode','Sklep','Settings','Graj / Wersje','Mody i dodatki','Skiny 3D','Wszystkie funkcje','Co nowego','Together')
+              for f in files:
+                  if not any(q in f for q in ('minevora_qt.py','minevora_visuals.py','minevora_easy_core.py','minevora_pvp_modmenu_qt.py','minevora_plus','minevora_nav')):
+                      continue
+                  try:
+                      raw=z.read(f).decode('utf-8-sig')
+                      ast.parse(raw)
+                  except (SyntaxError, UnicodeError):
+                      continue
+                  print('\n=== FILE',f, 'lines',len(raw.splitlines()), '===')
+                  lines=raw.splitlines()
+                  matches=[i for i,line in enumerate(lines) if any(t.lower() in line.lower() for t in words)]
+                  matches=[i for i in matches if any(t in lines[i] for t in ('QPushButton','QList','addTab','addItem','navigation','nav','button','BUTTON','tabs','QAction','pages','sidebar','menu','setCurrentWidget','page_','onClick','connect','_BUTTONS','SECTION')) or ('[' in lines[i] and ']' in lines[i])]
+                  seen=set()
+                  for i in matches[:90]:
+                      for k in range(max(0,i-1), min(len(lines),i+3)):
+                          if k in seen:continue
+                          seen.add(k)
+                          line=lines[k][:240]
+                          if any(x in line.lower() for x in ('token=', 'secret=', 'password=')):line='[redacted]'
+                          print(f'{k+1:4}: {line}')
+          PY

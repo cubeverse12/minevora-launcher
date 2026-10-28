@@ -1,0 +1,58 @@
+name: Build MINEVORA 18.3.5 Clean Menu
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/build_clean_18_3_5.py
+      - .github/workflows/release-18-3-5-clean-menu.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download and verify 18.3.4 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p input
+          gh release download v18.3.4 --repo cubeverse12/minevora-launcher --pattern 'MINEVORA_LAUNCHER_18_3_4_SHARP.zip' --dir input
+          gh release download v18.3.4 --repo cubeverse12/minevora-launcher --pattern 'MINEVORA_LAUNCHER_18_3_4_SHARP.zip.sha256' --dir input
+          (cd input && sha256sum -c MINEVORA_LAUNCHER_18_3_4_SHARP.zip.sha256)
+      - name: Build and validate launcher archive
+        run: |
+          python -m py_compile tools/build_clean_18_3_5.py
+          python tools/build_clean_18_3_5.py
+          (cd dist && sha256sum -c MINEVORA_LAUNCHER_18_3_5_CLEAN_MENU.zip.sha256)
+      - name: Upload ZIP and checksum artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MINEVORA-18.3.5-CLEAN-MENU
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            dist/MINEVORA_LAUNCHER_18_3_5_CLEAN_MENU.zip
+            dist/MINEVORA_LAUNCHER_18_3_5_CLEAN_MENU.zip.sha256
+      - name: Publish 18.3.5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view v18.3.5 --repo cubeverse12/minevora-launcher >/dev/null 2>&1; then
+            echo "Release v18.3.5 already exists and was left unchanged."
+          else
+            gh release create v18.3.5 dist/MINEVORA_LAUNCHER_18_3_5_CLEAN_MENU.zip dist/MINEVORA_LAUNCHER_18_3_5_CLEAN_MENU.zip.sha256 \
+              --repo cubeverse12/minevora-launcher \
+              --title "MINEVORA Launcher 18.3.5 - uproszczone menu" \
+              --notes "Launcher 18.3.4 z uproszczonym ekranem Start. Ukryte nieukończone i zduplikowane zakładki: Marketplace, Minigry, Wszystkie funkcje, Together, Co nowego i dodatkowy skrót Discord. Start ma cztery najważniejsze kafelki: Graj / Wersje, Mody, Ranking i PvP HUD. Pozostawiono logowanie, wybór wersji, konfigurację RAM i loaderów, Skin Studio, instalację modów i wszystkie istniejące dane. Weryfikacja SHA-256 i składni Python została przeprowadzona automatycznie. Test uruchomienia okien Windows na rzeczywistym komputerze jest nadal zalecany."
+          fi

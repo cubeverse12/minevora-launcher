@@ -33,3 +33,26 @@ Testy offline: `python -m unittest discover -s tests -p 'test_modrinth_plan_inst
 Potwierdzony udany workflow GitHub Actions: https://github.com/cubeverse12/minevora-launcher/actions/runs/41242441149.
 
 To nadal komponent rozwojowy — testy integracji z GUI i uruchomienia Minecrafta na Windows są do wykonania.
+
+
+## MINEVORA 18.3.8 SERVICES — eksperymentalna integracja Qt
+
+Pierwsza paczka rozwojowa z **widoczną akcją menu „Konto Microsoft i dodatki…”**, skrótem **Ctrl+M** i osobnym oknem PySide6. Nie jest to jeszcze stabilna aktualizacja aplikacji ani nowy instalator EXE.
+
+**Wynik GitHub Actions:** https://github.com/cubeverse12/minevora-launcher/actions/runs/41243357172
+
+Archiwum znajduje się w sekcji **Artifacts** powyższego uruchomienia pod nazwą `MINEVORA-18.3.8-SERVICES-EXPERIMENTAL`. GitHub wymaga zalogowania do pobrania artefaktów; dostępność jest ograniczona retencją.
+
+Źródła:
+- `tools/minevora_services_window.py` — okno profili Modrinth i logowania Microsoft.
+- `tools/microsoft_minecraft_device_auth.py` — logowanie **device code** (bez ręcznego `http://localhost/...`), wymiana tokenów Xbox/XSTS/Minecraft i weryfikacja praw do gry; sesja tylko w pamięci.
+- `tools/modrinth_plan_installer.py` — weryfikowany instalator wybranych dodatków do istniejących instancji.
+- `tools/build_services_18_3_8.py` — budowanie rozszerzonej paczki na podstawie zweryfikowanego wydania 18.3.7. Nie nadpisuje starszego wydania.
+
+### Microsoft — co musi być skonfigurowane
+
+**Wymagany jest własny identyfikator public-client aplikacji Microsoft (`MINEVORA_MS_CLIENT_ID`) obsługującej konta osobiste** i uprawnienia `XboxLive.signin` / usług Minecraft. Bez prawidłowej rejestracji i wymaganej zgody Microsoft/Minecraft logowanie do gry nie będzie działało. Nie ma tu żadnego hasła ani `client_secret` do wpisania w launcher.
+
+Po uruchomieniu okna kliknięcie „Zaloguj przez Microsoft” wyświetla oficjalny adres Microsoft i jednorazowy kod. Po logowaniu program musi otrzymać potwierdzone uprawnienia Minecraft Java i profil gracza; bez nich nie przedstawia konta jako gotowego do gry. Kod urządzenia nie omija zabezpieczeń konta ani wymagań rodzinnych.
+
+**Ograniczenia:** nie potwierdzono logowania na rzeczywistym koncie Microsoft, uprawnień app registration, uruchomienia gry w Windows ani pobierania modów z internetu w GUI. Wykonane testy to testy offline oraz kompilacja, analiza struktury i budowanie ZIP w CI.

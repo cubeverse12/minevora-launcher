@@ -6,11 +6,15 @@ on:
     paths:
       - 'tools/modrinth_plan_installer.py'
       - 'tests/test_modrinth_plan_installer.py'
+      - 'tools/microsoft_minecraft_device_auth.py'
+      - 'tests/test_microsoft_device_auth.py'
       - '.github/workflows/test-modrinth-plan-installer.yml'
   pull_request:
     paths:
       - 'tools/modrinth_plan_installer.py'
       - 'tests/test_modrinth_plan_installer.py'
+      - 'tools/microsoft_minecraft_device_auth.py'
+      - 'tests/test_microsoft_device_auth.py'
       - '.github/workflows/test-modrinth-plan-installer.yml'
   workflow_dispatch:
 
@@ -27,6 +31,6 @@ jobs:
         with:
           python-version: '3.12'
       - name: Validate Python source
-        run: python -m py_compile tools/modrinth_plan_installer.py tests/test_modrinth_plan_installer.py
+        run: python -m py_compile tools/modrinth_plan_installer.py tests/test_modrinth_plan_installer.py tools/microsoft_minecraft_device_auth.py tests/test_microsoft_device_auth.py
       - name: Run offline compatibility and checksum tests
-        run: python -m unittest discover -s tests -p 'test_modrinth_plan_installer.py' -v
+        run: python -m unittest discover -s tests -p 'test_*.py' -v

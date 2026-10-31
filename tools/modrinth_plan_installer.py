@@ -173,9 +173,13 @@ def _download_verified(file, destination, opener=urllib.request.urlopen):
     if destination.exists():
         if destination.is_symlink() or not destination.is_file():
             raise PlanError("Niedozwolony istniejący plik: " + destination.name)
-        digest = hashlib.sha512(destination.read_bytes()).hexdigest()
-        if digest == expected_hash and destination.stat().st_size == expected_size:
-            return "już zainstalowano"
+        if destination.stat().st_size == expected_size:
+            digest = hashlib.sha512()
+            with destination.open("rb") as existing:
+                for block in iter(lambda: existing.read(1024 * 128), b""):
+                    digest.update(block)
+            if digest.hexdigest() == expected_hash:
+                return "już zainstalowano"
         raise PlanError("Istniejący plik różni się od wybranego wydania: " + destination.name)
     request = urllib.request.Request(file["url"], headers={"User-Agent": AGENT})
     fd, temporary = tempfile.mkstemp(prefix=".minevora-", suffix=".part", dir=destination.parent)

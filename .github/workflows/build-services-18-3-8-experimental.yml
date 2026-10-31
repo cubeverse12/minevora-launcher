@@ -1,0 +1,70 @@
+name: Build MINEVORA 18.3.8 Services Preview
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/build_services_18_3_8.py'
+      - 'tools/modrinth_plan_installer.py'
+      - 'tools/microsoft_minecraft_device_auth.py'
+      - 'tools/minevora_services_window.py'
+      - '.github/workflows/build-services-18-3-8-experimental.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download official, checksum-verified 18.3.7 base release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p input dist
+          gh release download v18.3.7 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip' --dir input
+          gh release download v18.3.7 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip.sha256' --dir input
+          (cd input && sha256sum -c MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip.sha256)
+      - name: Compile all integration sources
+        run: |
+          python -m py_compile tools/build_services_18_3_8.py tools/modrinth_plan_installer.py tools/microsoft_minecraft_device_auth.py tools/minevora_services_window.py
+      - name: Build experimental archive
+        run: |
+          python tools/build_services_18_3_8.py
+          (cd dist && sha256sum -c MINEVORA_LAUNCHER_18_3_8_SERVICES_EXPERIMENTAL.zip.sha256)
+          unzip -t dist/MINEVORA_LAUNCHER_18_3_8_SERVICES_EXPERIMENTAL.zip | tail -n 1
+      - name: Confirm patched launcher's original class and new menu
+        run: |
+          python - <<'PY'
+          from zipfile import ZipFile
+          import ast
+          path='dist/MINEVORA_LAUNCHER_18_3_8_SERVICES_EXPERIMENTAL.zip'
+          root='MINEVORA_18_3_ENCHANTED/'
+          with ZipFile(path) as z:
+              src=z.read(root+'minevora_qt.py').decode('utf-8')
+              tree=ast.parse(src)
+              classes=[c for c in tree.body if isinstance(c,ast.ClassDef) and c.name=='Window']
+              assert len(classes)==1
+              methods=[n.name for n in classes[0].body if isinstance(n,ast.FunctionDef)]
+              assert '__init__' in methods and '_minevora_open_services' in methods
+              assert 'self.menuBar().addAction(self._minevora_services_action)' in src
+              assert 'QKeySequence("Ctrl+M")' in src
+              for key in ['minevora_services_window.py','modrinth_plan_installer.py','microsoft_minecraft_device_auth.py']:
+                  compile(z.read(root+key).decode('utf-8'),key,'exec')
+          print('MINEVORA patched launcher AST checks OK')
+          PY
+      - name: Upload experimental Windows-compatible source ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: MINEVORA-18.3.8-SERVICES-EXPERIMENTAL
+          path: |
+            dist/MINEVORA_LAUNCHER_18_3_8_SERVICES_EXPERIMENTAL.zip
+            dist/MINEVORA_LAUNCHER_18_3_8_SERVICES_EXPERIMENTAL.zip.sha256
+          retention-days: 30
+          if-no-files-found: error

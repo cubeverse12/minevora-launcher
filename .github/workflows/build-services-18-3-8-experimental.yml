@@ -52,7 +52,8 @@ jobs:
               classes=[c for c in tree.body if isinstance(c,ast.ClassDef) and c.name=='Window']
               assert len(classes)==1
               methods=[n.name for n in classes[0].body if isinstance(n,ast.FunctionDef)]
-              assert '__init__' in methods and '_minevora_open_services' in methods
+              assert '__init__' in methods
+              assert 'QTimer.singleShot(0, _minevora_setup_services_menu)' in src
               assert 'self.menuBar().addAction(self._minevora_services_action)' in src
               assert 'QKeySequence("Ctrl+M")' in src
               for key in ['minevora_services_window.py','modrinth_plan_installer.py','microsoft_minecraft_device_auth.py']:

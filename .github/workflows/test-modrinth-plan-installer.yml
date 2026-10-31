@@ -1,0 +1,32 @@
+name: Test Modrinth Profile Installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/modrinth_plan_installer.py'
+      - 'tests/test_modrinth_plan_installer.py'
+      - '.github/workflows/test-modrinth-plan-installer.yml'
+  pull_request:
+    paths:
+      - 'tools/modrinth_plan_installer.py'
+      - 'tests/test_modrinth_plan_installer.py'
+      - '.github/workflows/test-modrinth-plan-installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate Python source
+        run: python -m py_compile tools/modrinth_plan_installer.py tests/test_modrinth_plan_installer.py
+      - name: Run offline compatibility and checksum tests
+        run: python -m unittest discover -s tests -p 'test_modrinth_plan_installer.py' -v

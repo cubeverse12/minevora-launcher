@@ -8,6 +8,7 @@ on:
       - 'tests/test_modrinth_plan_installer.py'
       - 'tools/microsoft_minecraft_device_auth.py'
       - 'tests/test_microsoft_device_auth.py'
+      - 'tools/minevora_services_window.py'
       - '.github/workflows/test-modrinth-plan-installer.yml'
   pull_request:
     paths:
@@ -15,6 +16,7 @@ on:
       - 'tests/test_modrinth_plan_installer.py'
       - 'tools/microsoft_minecraft_device_auth.py'
       - 'tests/test_microsoft_device_auth.py'
+      - 'tools/minevora_services_window.py'
       - '.github/workflows/test-modrinth-plan-installer.yml'
   workflow_dispatch:
 
@@ -31,6 +33,30 @@ jobs:
         with:
           python-version: '3.12'
       - name: Validate Python source
-        run: python -m py_compile tools/modrinth_plan_installer.py tests/test_modrinth_plan_installer.py tools/microsoft_minecraft_device_auth.py tests/test_microsoft_device_auth.py
+        run: python -m py_compile tools/modrinth_plan_installer.py tests/test_modrinth_plan_installer.py tools/microsoft_minecraft_device_auth.py tests/test_microsoft_device_auth.py tools/minevora_services_window.py
       - name: Run offline compatibility and checksum tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Install Qt for headless window smoke test
+        run: python -m pip install --quiet 'PySide6>=6.8,<7'
+      - name: Smoke test account and addons dialog offscreen
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, 'tools')
+          from PySide6.QtWidgets import QApplication
+          from minevora_services_window import MinevoraServicesWindow
+          app=QApplication([])
+          w=MinevoraServicesWindow()
+          w.show()
+          app.processEvents()
+          assert w.login_btn.text() == 'Zaloguj przez Microsoft'
+          assert w.check_btn.isEnabled()
+          assert w.apply_btn.isEnabled()
+          assert not w.open_link_btn.isEnabled()
+          assert w.windowTitle().startswith('MINEVORA')
+          print('QT SERVICES SMOKE OK')
+          w.close()
+          app.quit()
+          PY

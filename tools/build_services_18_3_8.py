@@ -24,16 +24,18 @@ TOOLS = {
 }
 
 INJECT = '''
-        # MINEVORA 18.3.8: optional Microsoft and Modrinth services window.
-        from PySide6.QtGui import QAction, QKeySequence
-        self._minevora_services_action = QAction("Konto Microsoft i dodatki…", self)
-        self._minevora_services_action.setShortcut(QKeySequence("Ctrl+M"))
-        self.menuBar().addAction(self._minevora_services_action)
-        self._minevora_services_action.triggered.connect(self._minevora_open_services)
-
-    def _minevora_open_services(self):
-        from minevora_services_window import show_services
-        self._minevora_services_dialog = show_services(self)
+        # MINEVORA 18.3.8: add tools menu only after the Qt window is initialized.
+        from PySide6.QtCore import QTimer
+        def _minevora_setup_services_menu():
+            from PySide6.QtGui import QAction, QKeySequence
+            self._minevora_services_action = QAction("Konto Microsoft i dodatki…", self)
+            self._minevora_services_action.setShortcut(QKeySequence("Ctrl+M"))
+            self.menuBar().addAction(self._minevora_services_action)
+            def _minevora_open_services():
+                from minevora_services_window import show_services
+                self._minevora_services_dialog = show_services(self)
+            self._minevora_services_action.triggered.connect(_minevora_open_services)
+        QTimer.singleShot(0, _minevora_setup_services_menu)
 '''
 
 
@@ -66,16 +68,18 @@ def patch_ui(text: str) -> str:
     if "_minevora_open_services" in text:
         raise BuildError("Services menu already added; refusing duplicate patch.")
     lines = text.splitlines(keepends=True)
-    if not lines[init.end_lineno - 1].endswith("\n"):
-        raise BuildError("Unexpected non-newline ending on Window.__init__.")
-    lines.insert(init.end_lineno, INJECT)
+    insertion_index = init.body[0].lineno - 1
+    if (isinstance(init.body[0], ast.Expr) and
+            isinstance(init.body[0].value, ast.Constant) and
+            isinstance(init.body[0].value.value, str)):
+        insertion_index = init.body[0].end_lineno
+    lines.insert(insertion_index, INJECT)
     updated = "".join(lines)
     newtree = ast.parse(updated)
     window = next(x for x in newtree.body if isinstance(x, ast.ClassDef) and x.name == "Window")
-    if not any(isinstance(x, ast.FunctionDef) and x.name == "_minevora_open_services" for x in window.body):
-        raise BuildError("Cannot find the new services action in Window class.")
-    if not any(isinstance(x, ast.FunctionDef) and x.name == "__init__" for x in window.body):
-        raise BuildError("Original Window.__init__ unexpectedly missing.")
+    init2 = next(x for x in window.body if isinstance(x, ast.FunctionDef) and x.name == "__init__")
+    assert any(isinstance(x, ast.ImportFrom) and x.module == "PySide6.QtCore" for x in init2.body)
+    assert "QKeySequence(\"Ctrl+M\")" in updated
     return updated
 
 

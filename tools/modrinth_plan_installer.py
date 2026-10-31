@@ -153,10 +153,10 @@ def validate_entries(plan, opener=urllib.request.urlopen):
                 continue
             dep_v = dep.get("version_id")
             dep_p = dep.get("project_id")
-            if (dep_v and dep_v not in known_versions) and (not dep_p or dep_p not in known_projects):
+            if dep_v and dep_v not in known_versions:
                 raise PlanError(resolved["entry"]["name"] +
                                 ": wymagana zależność nie jest na liście: " + str(dep_p or dep_v))
-            if dep_p and dep_p not in known_projects and not dep_v:
+            if dep_p and dep_p not in known_projects:
                 raise PlanError(resolved["entry"]["name"] +
                                 ": brakuje wymaganej zależności projektu: " + str(dep_p))
             if not dep_v and not dep_p:

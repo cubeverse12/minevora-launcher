@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import textwrap
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -73,7 +74,8 @@ def patch_ui(text: str) -> str:
             isinstance(init.body[0].value, ast.Constant) and
             isinstance(init.body[0].value.value, str)):
         insertion_index = init.body[0].end_lineno
-    lines.insert(insertion_index, INJECT)
+    indented_inject = textwrap.indent(textwrap.dedent(INJECT).strip("\n") + "\n", " " * init.body[0].col_offset)
+    lines.insert(insertion_index, indented_inject)
     updated = "".join(lines)
     newtree = ast.parse(updated)
     window = next(x for x in newtree.body if isinstance(x, ast.ClassDef) and x.name == "Window")

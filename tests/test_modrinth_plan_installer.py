@@ -119,6 +119,24 @@ class InstallerTests(unittest.TestCase):
             mod.validate_entries(plan, opener=self.api)
         self.assertFalse((self.profile / "mods").exists())
 
+    def test_required_exact_version_cannot_be_replaced_by_other_version_of_same_project(self):
+        self.version["dependencies"] = [
+            {"project_id": "PROJECT1", "version_id": "OTHER999",
+             "dependency_type": "required"}
+        ]
+        plan = mod.read_plan(self.write_plan())
+        with self.assertRaisesRegex(mod.PlanError, "wymagana zależność"):
+            mod.validate_entries(plan, opener=self.api)
+
+    def test_required_project_cannot_be_replaced_by_different_project_version(self):
+        self.version["dependencies"] = [
+            {"project_id": "MISSING2", "version_id": "ABCDEF12",
+             "dependency_type": "required"}
+        ]
+        plan = mod.read_plan(self.write_plan())
+        with self.assertRaisesRegex(mod.PlanError, "zależności projektu"):
+            mod.validate_entries(plan, opener=self.api)
+
     def test_wrong_game_version_fails(self):
         plan = mod.read_plan(self.write_plan())
         self.version["game_versions"] = ["1.20.1"]

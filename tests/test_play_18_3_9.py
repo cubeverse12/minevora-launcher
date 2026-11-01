@@ -10,10 +10,11 @@ from build_play_18_3_9 import LABEL_NEW, LABEL_OLD, OBJECT_NAME, PlayBuildError,
 
 def dummy_dashboard(label=LABEL_OLD):
     return (
-        "self.version_button=action('Wersja',launcher.instances,False)\n"
-        "self.loader_button=action('Loader',launcher.install_mod_loader,False)\n"
-        + label + "\n"
-        + OBJECT_NAME + "\n"
+        "class Example:\n    def initialize(self, launcher, action):\n"
+        "        self.version_button=action('Wersja',launcher.instances,False)\n"
+        "        self.loader_button=action('Loader',launcher.install_mod_loader,False)\n"
+        + "        " + label + "\n"
+        + "        " + OBJECT_NAME + "\n"
     )
 
 

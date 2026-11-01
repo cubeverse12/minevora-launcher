@@ -1,0 +1,72 @@
+name: Build MINEVORA 18.3.9 PLAY Experimental
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/build_play_18_3_9.py'
+      - 'tools/build_services_18_3_8.py'
+      - 'tools/minevora_services_window.py'
+      - 'tools/microsoft_minecraft_device_auth.py'
+      - 'tools/modrinth_plan_installer.py'
+      - 'tests/test_play_18_3_9.py'
+      - '.github/workflows/build-play-18-3-9-experimental.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  play-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Offline PLAY UI contract tests
+        run: |
+          python -m unittest discover -s tests -p 'test_play_18_3_9.py' -v
+          python -m py_compile tools/build_play_18_3_9.py tools/build_services_18_3_8.py
+      - name: Download checksum-verified published MINEVORA 18.3.7 base
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p input dist
+          gh release download v18.3.7 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip' --dir input
+          gh release download v18.3.7 --repo "${{ github.repository }}" --pattern 'MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip.sha256' --dir input
+          (cd input && sha256sum -c MINEVORA_LAUNCHER_18_3_7_NEON_DESKTOP.zip.sha256)
+      - name: Build and inspect experimental PLAY package
+        run: |
+          python tools/build_play_18_3_9.py
+          (cd dist && sha256sum -c MINEVORA_LAUNCHER_18_3_9_PLAY_EXPERIMENTAL.zip.sha256)
+          python - <<'PY'
+          from zipfile import ZipFile
+          import ast
+          file='dist/MINEVORA_LAUNCHER_18_3_9_PLAY_EXPERIMENTAL.zip'
+          root='MINEVORA_18_3_ENCHANTED/'
+          with ZipFile(file) as z:
+              assert z.testzip() is None
+              dashboard=z.read(root+'minevora_dashboard.py').decode('utf-8')
+              main=z.read(root+'minevora_qt.py').decode('utf-8')
+              ast.parse(dashboard)
+              ast.parse(main)
+              assert "▶  PLAY\\nMinecraft Java" in dashboard
+              assert "launcher.play,True" in dashboard
+              assert "launcher.instances" in dashboard
+              assert "launcher.install_mod_loader" in dashboard
+              assert "self.hero_play.setObjectName('heroPlay')" in dashboard
+              assert "setAccessibleName('PLAY" in dashboard
+              assert 'QKeySequence("Ctrl+M")' in main
+          print('PLAY button wiring and archived Python source verified')
+          PY
+      - name: Upload experimental ZIP for Windows testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: MINEVORA-18.3.9-PLAY-EXPERIMENTAL
+          path: |
+            dist/MINEVORA_LAUNCHER_18_3_9_PLAY_EXPERIMENTAL.zip
+            dist/MINEVORA_LAUNCHER_18_3_9_PLAY_EXPERIMENTAL.zip.sha256
+          retention-days: 30
+          if-no-files-found: error
